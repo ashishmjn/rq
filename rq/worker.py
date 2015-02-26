@@ -22,7 +22,7 @@ from .logutils import setup_loghandlers
 from .queue import get_failed_queue, Queue
 from .registry import FinishedJobRegistry, StartedJobRegistry
 from .suspension import is_suspended
-from .timeouts import UnixSignalDeathPenalty
+from .timeouts import UnixSignalDeathPenalty, JobTimeoutException
 from .utils import enum, import_attribute, make_colorizer, utcformat, utcnow
 from .version import VERSION
 
@@ -561,12 +561,13 @@ class Worker(object):
                 started_job_registry.remove(job, pipeline=pipeline)
 
                 pipeline.execute()
-
-            except Exception:
+            except Exception as e:
                 job.set_status(JobStatus.FAILED, pipeline=pipeline)
                 started_job_registry.remove(job, pipeline=pipeline)
                 pipeline.execute()
                 self.handle_exception(job, *sys.exc_info())
+                if isinstance(e, JobTimeoutException):
+                    raise SystemExit(1)
                 return False
 
         if rv is None:
