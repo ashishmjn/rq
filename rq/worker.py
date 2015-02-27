@@ -19,7 +19,7 @@ from .exceptions import DequeueTimeout, NoQueueError
 from .job import Job, Status
 from .logutils import setup_loghandlers
 from .queue import get_failed_queue, Queue
-from .timeouts import UnixSignalDeathPenalty
+from .timeouts import UnixSignalDeathPenalty, JobTimeoutException
 from .utils import make_colorizer, utcformat, utcnow
 from .version import VERSION
 
@@ -491,10 +491,12 @@ class Worker(object):
 
                 pipeline.execute()
 
-            except Exception:
+            except Exception as e:
                 # Use the public setter here, to immediately update Redis
                 job.set_status(Status.FAILED)
                 self.handle_exception(job, *sys.exc_info())
+                if isinstance(e, JobTimeoutException):
+                    raise SystemExit(1)
                 return False
 
         if rv is None:
